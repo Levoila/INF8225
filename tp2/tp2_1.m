@@ -22,53 +22,61 @@ nbIterations = 0;
 logVraisemblance = -realmax;
 precisionApprentissage = [];
 precisionValidation = [];
-lv = [];
-% while true
-%     %Log vraisemblance
-%     n = sum(((YA * Theta) .* XA')');
-%     Z = sum(exp(eye(4) * Theta * XA));
-%     newLogVraisemblance = sum(n - log(Z));
-%     delta = newLogVraisemblance - logVraisemblance;
-%     logVraisemblance = newLogVraisemblance;
-%     lv = [lv logVraisemblance];
-%     
-%     precisionApprentissage = [precisionApprentissage precision(XA, YA, Theta)];
-%     precisionValidation = [precisionValidation precision(XV, YV, Theta)];
-%     
-%     %Gradient
-%     Z = repmat(sum(exp(eye(4) * Theta * XA)),4,1);
-%     p = exp(eye(4) * Theta * XA) ./ Z;
-%     E = p * XA';
-%     gradient = E - goal;
-%     Theta = Theta - taux_dapprentissage * gradient;
-%     
-%     nbIterations = nbIterations + 1;
-%     if delta < 5
-%         break;
-%     end
-% end
+lvBatch = [];
+while true
+    %Log vraisemblance
+    n = sum(((YV * Theta) .* XV')');
+    Z = sum(exp(eye(4) * Theta * XV));
+    newLogVraisemblance = sum(n - log(Z));
+    delta = newLogVraisemblance - logVraisemblance;
+    logVraisemblance = newLogVraisemblance;
+    lvBatch = [lvBatch logVraisemblance];
+    
+    precisionApprentissage = [precisionApprentissage precision(XA, YA, Theta)];
+    precisionValidation = [precisionValidation precision(XV, YV, Theta)];
+    
+    %Gradient
+    Z = repmat(sum(exp(eye(4) * Theta * XA)),4,1);
+    p = exp(eye(4) * Theta * XA) ./ Z;
+    E = p * XA';
+    gradient = E - goal;
+    Theta = Theta - taux_dapprentissage * gradient;
+    
+    nbIterations = nbIterations + 1;
+    if abs(delta) < 1
+        break;
+    end
+end
+x1 = 1:nbIterations;
 
 precisionTest = precision(XT, YT, Theta);
 
-fprintf('Précision sur l''ensemble de tests = %f\n', precisionTest);
+fprintf('Précision sur l''ensemble de tests pour la descente par batch = %f\n', precisionTest);
 
-
-%Approche par mini-batch
+%Approche par mini-batches
 Theta = rand(4,101)-.5;
 batchSize = 568;
-
-nbIterations = 1;
-while true
-    
+alpha = 0.6;
+deltaTheta = zeros(4,101);
+nbIterations = 0;
+logVraisemblance = -realmax;
+converged = false;
+lvMiniBatches = [];
+pvMiniBatches = [];
+paMiniBatches = [];
+while ~converged
+    nbIterations = nbIterations + 1;
     [XB YB] = create_mini_batches(XA, YA, batchSize);
     
+    taux_dapprentissage = 2 / nbIterations;
     for i = 1:size(XB,2)
         %Log vraisemblance
-        n = sum(((YB{i,:} * Theta) .* XB{:,i}')');
-        Z = sum(exp(eye(4) * Theta * XB{:,i}));
+        n = sum(((YV * Theta) .* XV')');
+        Z = sum(exp(eye(4) * Theta * XV));
         newLogVraisemblance = sum(n - log(Z));
         delta = newLogVraisemblance - logVraisemblance;
         logVraisemblance = newLogVraisemblance;
+        lvMiniBatches = [lvMiniBatches logVraisemblance];
         
         %Gradient
         Z = repmat(sum(exp(eye(4) * Theta * XB{:,i})),4,1);
@@ -76,25 +84,34 @@ while true
         E = p * XB{:,i}';
         goal = YB{i,:}' * XB{:,i}';
         gradient = (E - goal) ./ batchSize;
-        Theta = Theta - taux_dapprentissage * gradient;
+        deltaTheta = alpha*deltaTheta - taux_dapprentissage * gradient;
+        Theta = Theta + deltaTheta;
         
-        precisionValidation = precision(XV, YV, Theta);
+        pvMiniBatches = [pvMiniBatches precision(XV, YV, Theta)];
+        
+        if abs(delta) < 0.0001
+            converged = true;
+            break;
+        end
     end
-    precisionValidation
+    paMiniBatches = [paMiniBatches precision(XA, YA, Theta)];
 end
+x2 = (1:size(lvMiniBatches,2)) / size(XB,2);
+x3 = 1:nbIterations;
 
-nbIterations
-x = 1:nbIterations;
+precisionTest = precision(XT, YT, Theta);
+
+fprintf('Précision sur l''ensemble de tests pour les mini-batches = %f\n', precisionTest);
 
 figure();
-plot(x,lv);
+plot(x1,lvBatch,x2,lvMiniBatches);
 title('Log vraisemblance en fonction du numéro d''itération');
 xlabel('Numéro d''itération');
 ylabel('Log vraisemblance');
 
 figure();
-plot(x,precisionApprentissage,x,precisionValidation);
+plot(x1,precisionApprentissage,x1,precisionValidation,x2,pvMiniBatches,x3,paMiniBatches);
 title('Courbes d''apprentissage');
 xlabel('Numéro d''itération');
 ylabel('Précision');
-legend('Ensemble d''apprentissage','Ensemble de validation');
+legend('Ensemble d''apprentissage (Batch)','Ensemble de validation (Batch)', 'Ensemble de validation (Mini Batches)', 'Ensemble d''apprentissage (Mini Batches)');

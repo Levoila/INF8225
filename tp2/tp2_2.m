@@ -9,8 +9,8 @@ Y = sparse(i,j,o,m,n);
 
 Theta = rand(4,201)-.5;
 X = documents;
-X = [X ; ones(1, 16242)];
 X = [X ; randi([0 1], 100, 16242)];
+X = [X ; ones(1, 16242)];
 
 [XA XV XT YA YV YT] = create_train_valid_test_splits(X, Y);
 
@@ -29,17 +29,19 @@ while ~converged
     for i = 1:size(XB,2)
         %Log vraisemblance
         n = sum(((YV * Theta) .* XV')');
-        Z = sum(exp(eye(4) * Theta * XV));
+        Z = sum(exp(Theta * XV));
         newLogVraisemblance = sum(n - log(Z));
         delta = newLogVraisemblance - logVraisemblance;
         logVraisemblance = newLogVraisemblance;
         
         %Gradient
-        Z = repmat(sum(exp(eye(4) * Theta * XB{:,i})),4,1);
-        p = exp(eye(4) * Theta * XB{:,i}) ./ Z;
+        Z = repmat(sum(exp(Theta * XB{:,i})),4,1);
+        p = exp(Theta * XB{:,i}) ./ Z;
         E = p * XB{:,i}';
         goal = YB{i,:}' * XB{:,i}';
         gradient = (E - goal) ./ batchSize;
+        
+        %Mise à jour des paramètres
         deltaTheta = alpha*deltaTheta - taux_dapprentissage * gradient;
         Theta = Theta + deltaTheta;
         
@@ -82,11 +84,12 @@ xlabel('Poid');
 ylabel('Occurences');
 
 %Mini-batch with regularization
+Theta = rand(4,201)-.5;
 batchSize = 568;
 alpha = 0.6;
 deltaTheta = zeros(4,201);
-lambda1 = 0.016;
-lambda2 = 0.046;
+lambda2 = 0.016;
+lambda1 = 0.046;
 nbIterations = 0;
 logVraisemblance = -realmax;
 converged = false;
@@ -99,17 +102,19 @@ while ~converged
     for i = 1:size(XB,2)
         %Log vraisemblance
         n = sum(((YV * Theta) .* XV')');
-        Z = sum(exp(eye(4) * Theta * XV));
+        Z = sum(exp(Theta * XV));
         newLogVraisemblance = sum(n - log(Z));
         delta = newLogVraisemblance - logVraisemblance;
         logVraisemblance = newLogVraisemblance;
         
         %Gradient
-        Z = repmat(sum(exp(eye(4) * Theta * XB{:,i})),4,1);
-        p = exp(eye(4) * Theta * XB{:,i}) ./ Z;
+        Z = repmat(sum(exp(Theta * XB{:,i})),4,1);
+        p = exp(Theta * XB{:,i}) ./ Z;
         E = p * XB{:,i}';
         goal = YB{i,:}' * XB{:,i}';
-        gradient = (E - goal) ./ batchSize + batchSize / size(XA,2) * (lambda1 * 2 * Theta + lambda2 * ((Theta > 0) + (Theta < 0) * -1));
+        gradient = (E - goal) ./ batchSize + batchSize / size(XA,2) * (lambda2 * 2 * Theta + lambda1 * ((Theta > 0) + (Theta < 0) * -1));
+        
+        %Mise à jour des paramètres
         deltaTheta = alpha*deltaTheta - taux_dapprentissage * gradient;
         Theta = Theta + deltaTheta;
         

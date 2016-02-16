@@ -26,7 +26,7 @@ lvBatch = [];
 while true
     %Log vraisemblance
     n = sum(((YV * Theta) .* XV')');
-    Z = sum(exp(eye(4) * Theta * XV));
+    Z = sum(exp(Theta * XV));
     newLogVraisemblance = sum(n - log(Z));
     delta = newLogVraisemblance - logVraisemblance;
     logVraisemblance = newLogVraisemblance;
@@ -36,10 +36,12 @@ while true
     precisionValidation = [precisionValidation precision(XV, YV, Theta)];
     
     %Gradient
-    Z = repmat(sum(exp(eye(4) * Theta * XA)),4,1);
-    p = exp(eye(4) * Theta * XA) ./ Z;
+    Z = repmat(sum(exp(Theta * XA)),4,1);
+    p = exp(Theta * XA) ./ Z;
     E = p * XA';
     gradient = E - goal;
+    
+    %Mise à jour des paramètres
     Theta = Theta - taux_dapprentissage * gradient;
     
     nbIterations = nbIterations + 1;
@@ -72,18 +74,20 @@ while ~converged
     for i = 1:size(XB,2)
         %Log vraisemblance
         n = sum(((YV * Theta) .* XV')');
-        Z = sum(exp(eye(4) * Theta * XV));
+        Z = sum(exp(Theta * XV));
         newLogVraisemblance = sum(n - log(Z));
         delta = newLogVraisemblance - logVraisemblance;
         logVraisemblance = newLogVraisemblance;
         lvMiniBatches = [lvMiniBatches logVraisemblance];
         
         %Gradient
-        Z = repmat(sum(exp(eye(4) * Theta * XB{:,i})),4,1);
-        p = exp(eye(4) * Theta * XB{:,i}) ./ Z;
+        Z = repmat(sum(exp(Theta * XB{:,i})),4,1);
+        p = exp(Theta * XB{:,i}) ./ Z;
         E = p * XB{:,i}';
         goal = YB{i,:}' * XB{:,i}';
         gradient = (E - goal) ./ batchSize;
+        
+        %Mise à jour des paramètres
         deltaTheta = alpha*deltaTheta - taux_dapprentissage * gradient;
         Theta = Theta + deltaTheta;
         
@@ -108,6 +112,7 @@ plot(x1,lvBatch,x2,lvMiniBatches);
 title('Log vraisemblance en fonction du numéro d''itération');
 xlabel('Numéro d''itération');
 ylabel('Log vraisemblance');
+legend('Batch','Mini Batches');
 
 figure();
 plot(x1,precisionApprentissage,x1,precisionValidation,x2,pvMiniBatches,x3,paMiniBatches);

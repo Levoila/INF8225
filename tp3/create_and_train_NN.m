@@ -1,52 +1,61 @@
-function [ THETA ] = create_and_train_NN( XT, YT, XV, YV, hiddenLayers )
-    batchSize = 1000;
+function [ THETA ] = create_and_train_NN( XT, YT, XV, YV, XTest, YTest, layerSizes, batchSize, learningRate, lambda1, lambda2 )
     converged = false;
-    learningRate = 0.001;
+    %learningRate = 0.1;
+    hiddenLayers = size(layerSizes,2)-2;
     
-    for i = 1:hiddenLayers
-       THETA{i} = rand(size(XT,2),size(XT,2)) - 0.5; 
+    for i = 2:size(layerSizes,2)
+       THETA{i-1} = (rand(layerSizes(i),layerSizes(i-1)+1) - 0.5) / sqrt(layerSizes(i-1)+1);
     end
-    THETA{i+1}  = rand(10,size(XT,2)) - 0.5;
     
-    while ~converged
+    t = 0;
+    maxP = 0;
+    pT = [];
+    pV = [];
+    n = 1000;
+    %while ~converged
+    for k = 1:n
+        t = t + 1;
        [XB, YB] = create_mini_batches(XT, YT, batchSize);
        for i = 1:size(XB,1)
            %Forward propagation
-           h{1} = XB{i}';
-           for j = 2:hiddenLayers+1
-               a{j-1} = THETA{j-1} * h{j-1};
-               h{j} = (a{j-1} >= 0) .* a{j-1} + 0.1 * (a{j-1} < 0) .* a{j-1};
-           end
-           a{j} = THETA{j} * h{j};
+           [a, h, f, averageLoss] = forward_propagation(XB{i}, YB{i}, THETA);
            
-           f = exp(a{j}) ./ repmat(sum(exp(a{j}),1),size(a{j},1),1);
-           delta{j} = -(YB{i} - f);
+           delta{hiddenLayers+1} = -(YB{i} - f);
 
            %backward propagation
            for j = hiddenLayers:-1:1
                D = (a{j} >= 0) + 0.1 * (a{j} < 0);
-               delta{j} = D .* (THETA{j+1}' * delta{j+1});
+               delta{j} = D .* (THETA{j+1}(:,1:end-1)' * delta{j+1});
            end
 
            for j = 1:hiddenLayers+1
-               gradient = -delta{j} * h{j}' ./ batchSize;
-               THETA{j} = THETA{j} + learningRate * gradient;
+               %Parameters update using L1 and L2 regularization
+               THETA{j} = (1 - learningRate * lambda2 * batchSize / size(XT,1)) * THETA{j} - (learningRate / batchSize) * delta{j} * h{j}' - learningRate * lambda1 * batchSize / size(XT,1) * sign(THETA{j});
            end
-           fprintf('%d\n', i);
-           
-           
-           %Check precision over validation set
-           h{1} = XV';
-           for j = 2:hiddenLayers+1
-               a{j-1} = THETA{j-1} * h{j-1};
-               h{j} = (a{j-1} >= 0) .* a{j-1} + 0.1 * (a{j-1} < 0) .* a{j-1};
-           end
-           a{j} = THETA{j} * h{j};
-
-           f = exp(a{j}) ./ repmat(sum(exp(a{j}),1),size(a{j},1),1);
-           [M predictions] = max(f);
-           precision = sum(sum(predictions' == (YV' * [1;2;3;4;5;6;7;8;9;10]))) / size(YV,2)
        end
+       
+       %Check precision over validation set
+       precision = compute_precision(XV, YV, THETA);
+       pV = [pV precision];
+       if precision > maxP
+           maxP = precision;
+           bestTheta = THETA;
+           fprintf('Max : %f (%d)\n', maxP, t);
+       end
+       fprintf('Validation : %f (%d)\n', precision, t);
+       
+       %Check precision over validation set
+       precision = compute_precision(XT, YT, THETA);
+       pT = [pT precision];
+       fprintf('Training : %f (%d)\n', precision, t);
     end
+    
+    precision = compute_precision(XTest, YTest, bestTheta);
+    fprintf('Test : %f\n', precision);
+    
+    figure();
+    t = sprintf('Precision with learning rate = %f', learningRate);
+    plot(1:n,pV,1:n,pT);
+    legend('Validation', 'Test');
+    title(t);
 end
-

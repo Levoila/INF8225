@@ -1,8 +1,13 @@
-function [ a, h, f, averageLoss ] = forward_propagation( X, Y, THETA )
+function [ a, h, f, averageLoss ] = forward_propagation( X, Y, THETA, pwA, dropout, dropoutRate )
     h{1} = [X' ; ones(1,size(X,1))];
    for j = 2:size(THETA,2)
        a{j-1} = THETA{j-1} * h{j-1};
-       h{j} = [(a{j-1} >= 0) .* a{j-1} + 0.1 * (a{j-1} < 0) .* a{j-1} ; ones(1,size(a{j-1},2))];
+       h{j} = [(a{j-1} >= 0) .* a{j-1} + pwA * (a{j-1} < 0) .* a{j-1} ; ones(1,size(a{j-1},2))];
+       if dropout 
+           h{j} = h{j} .* (rand(size(h{j})) > dropoutRate);
+       else
+           h{j} = h{j} * (1.0 - dropoutRate);
+       end
    end
    a{j} = THETA{j} * h{j};
    
